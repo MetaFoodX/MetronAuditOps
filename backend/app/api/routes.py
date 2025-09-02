@@ -13,7 +13,7 @@ from fastapi.responses import JSONResponse
 from PIL import Image
 from redis import Redis
 from rq import Queue
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Union
 
 # Import our models
 from app.models import (
@@ -43,13 +43,13 @@ from app.utils.dynamo_client import test_connection
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-_presign_cache = {
+_presign_cache: Dict[str, Any] = {
     "map": {},  # key -> {"url": str, "exp": float}
 }
 
 
 @router.get("/db/ping")
-def db_ping(request: Request):
+def db_ping(request: Request) -> Dict[str, Any]:
     """
     Quick tunnel + DB connectivity check. Returns basic info and row count sample.
     """
@@ -81,7 +81,7 @@ def db_ping(request: Request):
         raise HTTPException(status_code=500, detail=f"DB ping failed: {str(e)}")
 
 
-def _enqueue_ai_job(date: str):
+def _enqueue_ai_job(date: str) -> bool:
     try:
         cfg = load_config()
         rconf = cfg.get("redis", {})
@@ -92,7 +92,7 @@ def _enqueue_ai_job(date: str):
         )
         q = Queue("pan_ai", connection=redis_conn)
 
-        def _job(date_str: str):
+        def _job(date_str: str) -> None:
             import asyncio as _asyncio
             from datetime import datetime as _dt
             from datetime import timezone as _tz
@@ -101,7 +101,7 @@ def _enqueue_ai_job(date: str):
             from app.scheduler import set_ai_state as _set_state
 
             try:
-                _set_state(date_str, running=True, lastError=None)
+                _set_state(date_str, running=True, lastError="")
                 _asyncio.run(_populate(date_str, run_ai=True))
                 _set_state(
                     date_str, running=False, completedAt=_dt.now(_tz.utc).isoformat()
@@ -121,7 +121,9 @@ def _enqueue_ai_job(date: str):
 
 
 @router.post("/pan_ai/run")
-async def run_pan_ai_now(request: Request, restaurantId: int = None, date: str = None):
+async def run_pan_ai_now(
+    request: Request, restaurantId: Optional[int] = None, date: Optional[str] = None
+) -> Dict[str, Any]:
     """Explicit UI trigger to run the pan AI workflow in the background.
 
     Returns immediately with a message so the UI can show a waiting banner.
@@ -144,12 +146,15 @@ async def run_pan_ai_now(request: Request, restaurantId: int = None, date: str =
             )
 
         # Mark AI running and dispatch job (RQ if available, else thread)
-        set_ai_state(date, running=True, lastError=None)
+        if date is None:
+            raise HTTPException(status_code=400, detail="Date is required")
+        set_ai_state(date, running=True, lastError="")
         if not _enqueue_ai_job(date):
 
-            def _run_ai():
+            def _run_ai() -> None:
                 try:
-                    asyncio.run(populate_audits_for_date(date, run_ai=True))
+                    if date is not None:
+                        asyncio.run(populate_audits_for_date(date, run_ai=True))
                     set_ai_state(
                         date,
                         running=False,
@@ -157,7 +162,8 @@ async def run_pan_ai_now(request: Request, restaurantId: int = None, date: str =
                     )
                 except Exception as e:
                     try:
-                        set_ai_state(date, running=False, lastError=str(e))
+                        if date is not None:
+                            set_ai_state(date, running=False, lastError=str(e))
                     except Exception:
                         pass
                 finally:
@@ -181,8 +187,8 @@ async def run_pan_ai_now(request: Request, restaurantId: int = None, date: str =
 
 @router.post("/force_redownload")
 async def force_redownload(
-    request: Request, date: str = None, restaurantId: int = None
-):
+    request: Request, date: Optional[str] = None, restaurantId: Optional[int] = None
+) -> Dict[str, Any]:
     """Force re-download of audits for a specific date and run propagation in background.
 
     This triggers:
@@ -213,7 +219,7 @@ async def force_redownload(
         except Exception:
             pass
 
-        def _run_targeted():
+        def _run_targeted() -> None:
             try:
                 # Ensure repo/audit on path lazily
                 import sys as _sys
@@ -228,7 +234,8 @@ async def force_redownload(
                     _sys.path.insert(0, str(audit_dir))
 
                 # Download and populate for the requested date (NO AI; do not trigger smart retry)
-                asyncio.run(populate_audits_for_date(date, run_ai=False))
+                if date is not None:
+                    asyncio.run(populate_audits_for_date(date, run_ai=False))
             except Exception as _e:
                 try:
                     logger.warning(f"Force redownload failed for {date}: {_e}")
@@ -248,13 +255,13 @@ async def force_redownload(
 
 
 @router.get("/status")
-def read_status():
+def read_status() -> Any:
     config = load_config()
     return test_connection(config["dynamodb"]["table_names"]["audit_session"])
 
 
 @router.get("/pan_ai/status")
-def get_pan_ai_status(date: str):
+def get_pan_ai_status(date: str) -> Dict[str, Any]:
     """Return AI workflow status for a given date."""
     if not date:
         raise HTTPException(status_code=400, detail="date is required")
@@ -277,7 +284,7 @@ def get_pan_ai_status(date: str):
 
 
 @router.get("/restaurants")
-def get_restaurants_routes(request: Request):
+def get_restaurants_routes(request: Request) -> Any:
     skoopin_service = request.app.state.skoopin_service
     restaurants = skoopin_service.get_restaurants()
 
@@ -285,7 +292,7 @@ def get_restaurants_routes(request: Request):
 
 
 @router.get("/restaurants/with-scans")
-def get_restaurants_with_scans(request: Request, date: str = None):
+def get_restaurants_with_scans(request: Request, date: Optional[str] = None) -> Any:
     """
     Get restaurants that have scans on a specific date, with scan counts.
     If no date is provided, returns all restaurants with 0 scan counts.
@@ -338,13 +345,13 @@ def get_restaurants_with_scans(request: Request, date: str = None):
 
             for scan in scans:
                 # Use the same logic as in get_scans_to_audit to determine if scan is bad
-                def _to_float(value, default=0.0):
+                def _to_float(value: Any, default: float = 0.0) -> float:
                     try:
                         return float(value)
                     except Exception:
                         return default
 
-                def _to_bool(value):
+                def _to_bool(value: Any) -> bool:
                     if isinstance(value, bool):
                         return value
                     if isinstance(value, (int, float)):
@@ -470,7 +477,7 @@ def get_restaurants_with_scans(request: Request, date: str = None):
                 except Exception:
                     pass
 
-                def _run_targeted():
+                def _run_targeted() -> None:
                     try:
                         # Ensure repo/audit on path lazily
                         import sys as _sys
@@ -488,7 +495,7 @@ def get_restaurants_with_scans(request: Request, date: str = None):
                         asyncio.run(populate_audits_for_date(date, run_ai=False))
 
                         # Trigger smart retry in a separate background thread so Redis or queue issues never block propagation
-                        def _trigger_retry():
+                        def _trigger_retry() -> None:
                             try:
                                 trigger_smart_retry_background()
                             except Exception as _re:
@@ -531,7 +538,9 @@ def get_restaurants_with_scans(request: Request, date: str = None):
 
 
 @router.get("/pans")
-def get_registered_pans(request: Request, restaurantId: int = None, date: str = None):
+def get_registered_pans(
+    request: Request, restaurantId: Optional[int] = None, date: Optional[str] = None
+) -> Any:
     """
     Return registered pans based primarily on the database, not the Skoopin pans endpoint.
     Strategy:
@@ -543,7 +552,7 @@ def get_registered_pans(request: Request, restaurantId: int = None, date: str = 
     db_service = request.app.state.database_service
 
     # Helper to ensure JSON-serializable values
-    def _safe_dt(v):
+    def _safe_dt(v: Any) -> Any:
         try:
             from datetime import datetime as _dt
 
@@ -556,7 +565,7 @@ def get_registered_pans(request: Request, restaurantId: int = None, date: str = 
     pans: List[Dict[str, Any]] = []
     audited_pan_ids = set()
     try:
-        scans_for_day = []
+        scans_for_day: List[Dict[str, Any]] = []
         try:
             logger.info(f"/pans start: restaurantId={restaurantId}, date={date}")
         except Exception:
@@ -696,7 +705,7 @@ def get_registered_pans(request: Request, restaurantId: int = None, date: str = 
                     )
                     fallback_list: List[Dict[str, Any]] = []
                     for spid in observed_from_scans:
-                        pan: Dict[str, Any] = {
+                        fallback_pan: Dict[str, Any] = {
                             "ID": spid,
                             "wasAudited": spid in audited_pan_ids,
                         }
@@ -712,7 +721,7 @@ def get_registered_pans(request: Request, restaurantId: int = None, date: str = 
                                 ref.get("Shape") if ref.get("Shape") is not None else ""
                             )
                             db_size = ref.get("SizeStandard", "")
-                            pan.update(
+                            fallback_pan.update(
                                 {
                                     "Number": ref.get("Number", ""),
                                     "ShortID": ref.get("ShortID", ""),
@@ -740,9 +749,9 @@ def get_registered_pans(request: Request, restaurantId: int = None, date: str = 
                         if isinstance(img, str) and (
                             img.startswith("http://") or img.startswith("https://")
                         ):
-                            pan["imageUrl"] = img
+                            fallback_pan["imageUrl"] = img
                         elif img:
-                            pan["_imageKey"] = img
+                            fallback_pan["_imageKey"] = img
                             # Presign image so UI can render without extra roundtrip
                             try:
                                 url = request.app.state.aws_service.get_optimized_presigned_url(
@@ -752,11 +761,11 @@ def get_registered_pans(request: Request, restaurantId: int = None, date: str = 
                                     quality=70,
                                 )
                                 if url:
-                                    pan["imageUrl"] = url
-                                    pan.pop("_imageKey", None)
+                                    fallback_pan["imageUrl"] = url
+                                    fallback_pan.pop("_imageKey", None)
                             except Exception:
                                 pass
-                        fallback_list.append(pan)
+                        fallback_list.append(fallback_pan)
                     pans = fallback_list
                     logger.info(f"/pans fallback: built {len(pans)} pans from DB query")
             except Exception as fe:
@@ -789,10 +798,10 @@ def get_registered_pans(request: Request, restaurantId: int = None, date: str = 
 def search_menu_items(
     request: Request,
     restaurantId: int,
-    date: str = None,
-    q: str = None,
+    date: Optional[str] = None,
+    q: Optional[str] = None,
     limit: int = 50,
-):
+) -> Dict[str, Any]:
     """
     Lightweight menu item search based on existing scan data for the given restaurant/date.
     Returns distinct menu items seen in scans, filtered by query substring when provided.
@@ -802,7 +811,7 @@ def search_menu_items(
         scans = dynamo_service.get_scans_by_restaurant_day(restaurantId, date) or []
 
         # Build frequency map of (id, name)
-        counts = {}
+        counts: Dict[tuple, int] = {}
         for s in scans:
             mid = (
                 s.get("menuItemId")
@@ -838,13 +847,17 @@ def search_menu_items(
 
 
 @router.get("/image/presign")
-def presign_image(request: Request, key: str = Query(..., min_length=3)):
+def presign_image(
+    request: Request, key: str = Query(..., min_length=3)
+) -> Dict[str, str]:
     try:
         # Small in-memory cache to reduce AWS bursts when multiple auditors open the same scan
         now = time.time()
         cache_entry = _presign_cache["map"].get(key)
         if (
-            cache_entry and cache_entry.get("exp", 0) > now + 60
+            cache_entry
+            and isinstance(cache_entry, dict)
+            and cache_entry.get("exp", 0) > now + 60
         ):  # still valid for at least 60s
             return {"url": cache_entry["url"]}
 
@@ -864,10 +877,10 @@ def presign_image(request: Request, key: str = Query(..., min_length=3)):
 @router.get("/scans_to_audit")
 def get_scans_to_audit(
     request: Request,
-    restaurantId: int = None,
-    date: str = None,
+    restaurantId: Optional[int] = None,
+    date: Optional[str] = None,
     includeBad: bool = False,
-):
+) -> Any:
     # Prevent future-dated audits
     if date:
         try:
@@ -912,13 +925,13 @@ def get_scans_to_audit(
         limit = 1000
     scans = scans[:limit]
 
-    def _to_float(value, default=0.0):
+    def _to_float(value: Any, default: float = 0.0) -> float:
         try:
             return float(value)
         except Exception:
             return default
 
-    def _to_bool(value):
+    def _to_bool(value: Any) -> bool:
         if isinstance(value, bool):
             return value
         if isinstance(value, (int, float)):
@@ -1027,7 +1040,7 @@ def get_scans_to_audit(
                 except Exception:
                     pass
 
-                def _run_targeted():
+                def _run_targeted() -> None:
                     try:
                         # Ensure repo/audit on path lazily
                         import sys as _sys
@@ -1077,7 +1090,7 @@ def get_scans_to_audit(
             ai["coverage"] = compute_coverage_for_date(date)
         except Exception:
             pass
-    response_data = {"scans": normal_scans}
+    response_data: Dict[str, Any] = {"scans": normal_scans}
     if includeBad:
         response_data["flagged"] = flagged_scans
     # Attach propagation signals
@@ -1100,8 +1113,8 @@ def get_scans_to_audit(
 
 @router.post("/audit/session/create")
 async def create_audit_session(
-    request: Request, restaurant_id: int, date: str, auditor_id: str = None
-):
+    request: Request, restaurant_id: int, date: str, auditor_id: Optional[str] = None
+) -> Any:
     """
     Create a new audit session for a restaurant and date
     """
@@ -1131,7 +1144,7 @@ async def create_audit_session(
 
 
 @router.get("/audit/session/{session_id}")
-async def get_audit_session(request: Request, session_id: str):
+async def get_audit_session(request: Request, session_id: str) -> Dict[str, Any]:
     """
     Get audit session details and progress
     """
@@ -1159,7 +1172,7 @@ async def get_audit_session(request: Request, session_id: str):
 @router.get("/audit/sessions/restaurant/{restaurant_id}")
 async def get_audit_sessions_by_restaurant(
     request: Request, restaurant_id: int, limit: int = 50
-):
+) -> Dict[str, Any]:
     """
     Get audit sessions for a specific restaurant
     """
@@ -1187,7 +1200,7 @@ async def get_audit_sessions_by_restaurant(
 @router.post("/audit/confirm")
 async def confirm_audit_session(
     request: Request, audit_request: AuditConfirmationRequest
-):
+) -> Any:
     """
     Confirm audit session and apply fixes to Skoopin server
     """
@@ -1232,7 +1245,7 @@ async def confirm_audit_session(
 @router.post("/audit/actions/apply")
 async def apply_audit_actions(
     request: Request, actions: List[AuditAction], restaurant_id: int
-):
+) -> Dict[str, Any]:
     """
     Apply individual audit actions (for testing or partial updates)
     """
@@ -1269,7 +1282,7 @@ async def apply_audit_actions(
 
 
 @router.get("/audit/progress/{session_id}")
-async def get_audit_progress(request: Request, session_id: str):
+async def get_audit_progress(request: Request, session_id: str) -> Dict[str, Any]:
     """
     Get detailed audit progress for a session
     """
@@ -1295,7 +1308,7 @@ async def get_audit_progress(request: Request, session_id: str):
 
 
 @router.get("/audit/summary/{session_id}")
-async def get_audit_summary(request: Request, session_id: str):
+async def get_audit_summary(request: Request, session_id: str) -> Dict[str, Any]:
     """
     Get audit session summary
     """
@@ -1326,7 +1339,7 @@ async def get_audit_summary(request: Request, session_id: str):
 @router.post("/audit/crud")
 async def comprehensive_audit_crud(
     request: Request, audit_request: AuditConfirmationRequest
-):
+) -> Dict[str, Any]:
     """
     Comprehensive CRUD operations for audit system
     - CREATE: New audit sessions
@@ -1395,7 +1408,7 @@ async def comprehensive_audit_crud(
 @router.get("/audit/status/{restaurant_id}/{date}")
 async def get_comprehensive_audit_status(
     request: Request, restaurant_id: int, date: str
-):
+) -> Dict[str, Any]:
     """
     Get comprehensive audit status for a restaurant and date
     Shows both Skoopin and DynamoDB audit status
@@ -1453,10 +1466,13 @@ async def get_comprehensive_audit_status(
 
 
 @router.post("/submitAudit")
-def submit_audits(request: Request, audits: dict = Body(...)):
+def submit_audits(request: Request, audits: dict = Body(...)) -> Dict[str, Any]:
     # Prevent future-dated audits
     try:
-        requested = datetime.strptime(audits.get("date"), "%Y-%m-%d").date()
+        date_str = audits.get("date")
+        if not date_str:
+            raise HTTPException(status_code=400, detail="Missing date in payload.")
+        requested = datetime.strptime(date_str, "%Y-%m-%d").date()
     except Exception:
         raise HTTPException(
             status_code=400, detail="Invalid or missing date in payload."
@@ -1536,7 +1552,7 @@ def submit_audits(request: Request, audits: dict = Body(...)):
 
 
 @router.post("/scheduler/catch-up")
-async def trigger_manual_catch_up():
+async def trigger_manual_catch_up() -> Dict[str, Any]:
     """Manually trigger catch-up on missed scheduled runs."""
     try:
         result = await manual_catch_up_runs()
@@ -1550,7 +1566,7 @@ async def trigger_manual_catch_up():
 
 
 @router.get("/scheduler/status")
-async def get_scheduler_status():
+async def get_scheduler_status() -> Dict[str, Any]:
     """Get current status of scheduled runs for today."""
     try:
         result = get_run_status_summary()
@@ -1564,7 +1580,7 @@ async def get_scheduler_status():
 
 
 @router.post("/scheduler/force-catch-up")
-async def force_catch_up():
+async def force_catch_up() -> Dict[str, Any]:
     """Force an immediate catch-up check for missed runs."""
     try:
         result = await force_immediate_catch_up()
@@ -1580,7 +1596,7 @@ async def force_catch_up():
 @router.post("/scheduler/mark-completed")
 async def mark_run_completed(
     date: str, hour: int, minute: int, run_type: str = "manual"
-):
+) -> Dict[str, Any]:
     """Manually mark a scheduled run as completed for a specific date and time."""
     try:
         from datetime import datetime
@@ -1630,7 +1646,7 @@ async def mark_run_completed(
 
 
 @router.get("/scheduler/test")
-async def test_scheduler():
+async def test_scheduler() -> Dict[str, Any]:
     """Test endpoint to verify scheduler is working."""
     try:
         from pytz import timezone
@@ -1656,7 +1672,9 @@ async def test_scheduler():
 
 
 @router.post("/test/pan-download")
-async def test_pan_download(request: Request, restaurant_id: int = None):
+async def test_pan_download(
+    request: Request, restaurant_id: Optional[int] = None
+) -> Dict[str, Any]:
     """Test endpoint to manually test pan download functionality."""
     try:
         # Ensure repo root in path for audit_automation imports
