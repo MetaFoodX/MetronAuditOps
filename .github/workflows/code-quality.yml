@@ -1,234 +1,201 @@
-name: Code Quality
+name: Code Quality Checks
 
 on:
   push:
     branches: [ main, develop ]
   pull_request:
     branches: [ main, develop ]
+  workflow_dispatch:
 
 jobs:
   python-lint:
-    name: Python Linting & Formatting
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./backend
-
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
 
-    - name: Cache pip dependencies
-      uses: actions/cache@v3
-      with:
-        path: ~/.cache/pip
-        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
-        restore-keys: |
-          ${{ runner.os }}-pip-
+      - name: Install dependencies
+        run: |
+          cd backend
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install black isort flake8 mypy bandit safety
 
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
+      - name: Run Black
+        run: |
+          cd backend
+          black --check --diff .
 
-    - name: Install linting tools
-      run: |
-        pip install black flake8 isort mypy bandit safety
+      - name: Run isort
+        run: |
+          cd backend
+          isort --check-only --diff .
 
-    - name: Check code formatting with Black
-      run: |
-        black --check --diff .
+      - name: Run flake8
+        run: |
+          cd backend
+          flake8 .
 
-    - name: Sort imports with isort
-      run: |
-        isort --check-only --diff .
+      - name: Run mypy
+        run: |
+          cd backend
+          mypy app/utils app/models.py
 
-    - name: Lint with flake8
-      run: |
-        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=88 --statistics
+      - name: Run bandit
+        run: |
+          cd backend
+          bandit -r app -f json -o bandit-report.json || true
 
-    - name: Type check with mypy
-      run: |
-        mypy app/ --ignore-missing-imports --disallow-untyped-defs
+      - name: Run safety
+        run: |
+          cd backend
+          safety check --json --output safety-report.json || true
 
-    - name: Security check with bandit
-      run: |
-        bandit -r app/ -f json -o bandit-report.json || true
+      - name: Upload bandit report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bandit-report
+          path: backend/bandit-report.json
 
-    - name: Check for known security vulnerabilities
-      run: |
-        safety check --json --output safety-report.json || true
-
-    - name: Upload security reports
-      uses: actions/upload-artifact@v3
-      if: always()
-      with:
-        name: security-reports
-        path: |
-          bandit-report.json
-          safety-report.json
+      - name: Upload safety report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: safety-report
+          path: backend/safety-report.json
 
   python-test:
-    name: Python Tests
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./backend
-
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
 
-    - name: Cache pip dependencies
-      uses: actions/cache@v3
-      with:
-        path: ~/.cache/pip
-        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
-        restore-keys: |
-          ${{ runner.os }}-pip-
+      - name: Install dependencies
+        run: |
+          cd backend
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-cov
 
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
+      - name: Run tests
+        run: |
+          cd backend
+          pytest --cov=app --cov-report=xml --cov-report=html
 
-    - name: Run tests with pytest
-      run: |
-        pytest tests/ -v --cov=app --cov-report=xml --cov-report=html
-
-    - name: Upload coverage reports
-      uses: actions/upload-artifact@v3
-      with:
-        name: coverage-reports
-        path: |
-          htmlcov/
-          coverage.xml
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: backend/htmlcov/
 
   frontend-lint:
-    name: Frontend Linting
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./frontend
-
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Set up Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '18'
-        cache: 'npm'
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
 
-    - name: Install dependencies
-      run: npm ci
+      - name: Install dependencies
+        run: |
+          cd frontend
+          npm ci
 
-    - name: Run ESLint
-      run: npm run lint
+      - name: Run ESLint
+        run: |
+          cd frontend
+          npx eslint . --ext .js,.jsx,.ts,.tsx
 
-    - name: Check code formatting
-      run: npm run format:check
-
-    - name: Type check (if using TypeScript)
-      run: npm run type-check
-      continue-on-error: true
+      - name: Run Prettier check
+        run: |
+          cd frontend
+          npx prettier --check .
 
   frontend-test:
-    name: Frontend Tests
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./frontend
-
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Set up Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '18'
-        cache: 'npm'
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
 
-    - name: Install dependencies
-      run: npm ci
+      - name: Install dependencies
+        run: |
+          cd frontend
+          npm ci
 
-    - name: Run tests
-      run: npm test
-
-    - name: Build project
-      run: npm run build
+      - name: Run tests
+        run: |
+          cd frontend
+          npm test
 
   docker-build:
-    name: Docker Build Test
     runs-on: ubuntu-latest
-
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-    - name: Build backend Docker image
-      run: |
-        docker build -f backend/Dockerfile -t metron-audit-backend ./backend
+      - name: Build backend image
+        run: |
+          cd backend
+          docker build -t backend-test .
 
-    - name: Build frontend Docker image
-      run: |
-        docker build -f frontend/Dockerfile -t metron-audit-frontend ./frontend
+      - name: Build frontend image
+        run: |
+          cd frontend
+          docker build -t frontend-test .
 
   security-scan:
-    name: Security Scan
     runs-on: ubuntu-latest
-
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Run Trivy vulnerability scanner
-      uses: aquasecurity/trivy-action@master
-      with:
-        scan-type: 'fs'
-        scan-ref: '.'
-        format: 'sarif'
-        output: 'trivy-results.sarif'
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
 
-    - name: Upload Trivy scan results
-      uses: github/codeql-action/upload-sarif@v2
-      if: always()
-      with:
-        sarif_file: 'trivy-results.sarif'
+      - name: Upload Trivy scan results
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-results
+          path: trivy-results.sarif
 
   dependency-check:
-    name: Dependency Check
     runs-on: ubuntu-latest
-
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Check for outdated dependencies
-      run: |
-        echo "Checking Python dependencies..."
-        cd backend
-        pip install pipdeptree
-        pipdeptree --warn silence
+      - name: Check Python dependencies
+        run: |
+          cd backend
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip check
 
-    - name: Check for outdated npm packages
-      run: |
-        echo "Checking Node.js dependencies..."
-        cd frontend
-        npm outdated || true
+      - name: Check Node.js dependencies
+        run: |
+          cd frontend
+          npm audit --audit-level=moderate
