@@ -40,7 +40,7 @@ jobs:
         context: ./backend
         file: ./backend/Dockerfile
         push: true
-        tags: ${{ secrets.CONTAINER_REGISTRY || 'ghcr.io' }}/${{ github.repository }}/metron-audit-backend:staging-${{ github.sha }}
+        tags: ${{ secrets.CONTAINER_REGISTRY || 'ghcr.io' }}/${{ github.repository_owner }}/metronauditops/metron-audit-backend:staging-${{ github.sha }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
 
@@ -50,19 +50,19 @@ jobs:
         context: ./frontend
         file: ./frontend/Dockerfile
         push: true
-        tags: ${{ secrets.CONTAINER_REGISTRY || 'ghcr.io' }}/${{ github.repository }}/metron-audit-frontend:staging-${{ github.sha }}
+        tags: ${{ secrets.CONTAINER_REGISTRY || 'ghcr.io' }}/${{ github.repository_owner }}/metronauditops/metron-audit-frontend:staging-${{ github.sha }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
 
     - name: Deploy to staging
       run: |
         echo "Deploying to staging environment..."
-        echo "Backend image: ${{ secrets.CONTAINER_REGISTRY || 'ghcr.io' }}/${{ github.repository }}/metron-audit-backend:staging-${{ github.sha }}"
-        echo "Frontend image: ${{ secrets.CONTAINER_REGISTRY || 'ghcr.io' }}/${{ github.repository }}/metron-audit-frontend:staging-${{ github.sha }}"
+        echo "Backend image: ${{ secrets.CONTAINER_REGISTRY || 'ghcr.io' }}/${{ github.repository_owner }}/metronauditops/metron-audit-backend:staging-${{ github.sha }}"
+        echo "Frontend image: ${{ secrets.CONTAINER_REGISTRY || 'ghcr.io' }}/${{ github.repository_owner }}/metronauditops/metron-audit-frontend:staging-${{ github.sha }}"
         # Add your deployment commands here
         # Example: kubectl apply, gcloud run deploy, etc.
         # kubectl apply -f k8s/staging/
-        # gcloud run deploy metron-audit-backend --image=${{ secrets.CONTAINER_REGISTRY || 'ghcr.io' }}/${{ github.repository }}/metron-audit-backend:staging-${{ github.sha }} --region=us-central1 --platform=managed
+        # gcloud run deploy metron-audit-backend --image=${{ secrets.CONTAINER_REGISTRY || 'ghcr.io' }}/${{ github.repository_owner }}/metronauditops/metron-audit-backend:staging-${{ github.sha }} --region=us-central1 --platform=managed
 
   deploy-production:
     name: Deploy to Production
@@ -90,8 +90,8 @@ jobs:
         file: ./backend/Dockerfile
         push: true
         tags: |
-          ${{ secrets.CONTAINER_REGISTRY || 'ghcr.io' }}/${{ github.repository }}/metron-audit-backend:production-${{ github.sha }}
-          ${{ secrets.CONTAINER_REGISTRY || 'ghcr.io' }}/${{ github.repository }}/metron-audit-backend:latest
+          ${{ secrets.CONTAINER_REGISTRY || 'ghcr.io' }}/${{ github.repository_owner }}/metronauditops/metron-audit-backend:production-${{ github.sha }}
+          ${{ secrets.CONTAINER_REGISTRY || 'ghcr.io' }}/${{ github.repository_owner }}/metronauditops/metron-audit-backend:latest
         cache-from: type=gha
         cache-to: type=gha,mode=max
 
@@ -102,20 +102,20 @@ jobs:
         file: ./frontend/Dockerfile
         push: true
         tags: |
-          ${{ secrets.CONTAINER_REGISTRY || 'ghcr.io' }}/${{ github.repository }}/metron-audit-frontend:production-${{ github.sha }}
-          ${{ secrets.CONTAINER_REGISTRY || 'ghcr.io' }}/${{ github.repository }}/metron-audit-frontend:latest
+          ${{ secrets.CONTAINER_REGISTRY || 'ghcr.io' }}/${{ github.repository_owner }}/metronauditops/metron-audit-frontend:production-${{ github.sha }}
+          ${{ secrets.CONTAINER_REGISTRY || 'ghcr.io' }}/${{ github.repository_owner }}/metronauditops/metron-audit-frontend:latest
         cache-from: type=gha
         cache-to: type=gha,mode=max
 
     - name: Deploy to production
       run: |
         echo "Deploying to production environment..."
-        echo "Backend image: ${{ secrets.CONTAINER_REGISTRY || 'ghcr.io' }}/${{ github.repository }}/metron-audit-backend:production-${{ github.sha }}"
-        echo "Frontend image: ${{ secrets.CONTAINER_REGISTRY || 'ghcr.io' }}/${{ github.repository }}/metron-audit-frontend:production-${{ github.sha }}"
+        echo "Backend image: ${{ secrets.CONTAINER_REGISTRY || 'ghcr.io' }}/${{ github.repository_owner }}/metronauditops/metron-audit-backend:production-${{ github.sha }}"
+        echo "Frontend image: ${{ secrets.CONTAINER_REGISTRY || 'ghcr.io' }}/${{ github.repository_owner }}/metronauditops/metron-audit-frontend:production-${{ github.sha }}"
         # Add your deployment commands here
         # Example: kubectl apply, gcloud run deploy, etc.
         # kubectl apply -f k8s/production/
-        # gcloud run deploy metron-audit-backend --image=${{ secrets.CONTAINER_REGISTRY || 'ghcr.io' }}/${{ github.repository }}/metron-audit-backend:production-${{ github.sha }} --region=us-central1 --platform=managed
+        # gcloud run deploy metron-audit-backend --image=${{ secrets.CONTAINER_REGISTRY || 'ghcr.io' }}/${{ github.repository_owner }}/metronauditops/metron-audit-backend:production-${{ github.sha }} --region=us-central1 --platform=managed
 
     - name: Notify deployment
       run: |
