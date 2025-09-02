@@ -1,0 +1,53 @@
+aws:
+  region: "${AWS_REGION}"
+  access_key_id: "${AWS_ACCESS_KEY_ID}"
+  secret_access_key: "${AWS_SECRET_ACCESS_KEY}"
+  bucket_name: "${AWS_BUCKET_NAME}"
+  ai_bucket_name: "${AWS_AI_BUCKET_NAME}"
+  env: "${AWS_ENV}"
+
+dynamodb:
+  table_names:
+    audit_session: "${DYNAMODB_AUDIT_SESSION_TABLE}"
+    scan_audit: "${DYNAMODB_SCAN_AUDIT_TABLE}"
+    users: "${DYNAMODB_USERS_TABLE}"
+
+  key_schema:
+    audit_session:
+    - "auditReportId"
+    - "tsEventType"
+    scan_audit:
+      - "RestaurantDate"
+      - "scanId"
+    users:
+      - "userId"
+
+skoopin_server:
+  refresh_token: "${SKOOPIN_REFRESH_TOKEN}"
+  server_address: "${SKOOPIN_SERVER_ADDRESS}"
+  client_id: "${SKOOPIN_CLIENT_ID}"
+  max_cache_size: 1000
+
+audit:
+  scan_zero_weight: "${AUDIT_SCAN_ZERO_WEIGHT}"
+  audit_csv_file_dir: "${AUDIT_CSV_FILE_DIR}"
+  audit_directory: "${AUDIT_DIRECTORY}"
+  google_api_key: "${GOOGLE_API_KEY}"
+  open_ai_key: "${OPENAI_API_KEY}"
+
+redis:
+  host: "127.0.0.1"
+  port: 6379
+  db: 0
+
+DB:
+  db_port: "${DB_PORT}"
+  db_user: "${DB_USER}"
+  db_pass: "${DB_PASS}"
+  db_schema: "${DB_SCHEMA}"
+  db_host: "${DB_HOST}"
+  ssh_host: "${SSH_HOST}"
+  ssh_username: "${SSH_USERNAME}"
+  ssh_pkey: "${SSH_PKEY}"
+  remote_host: "${REMOTE_HOST}"
+  remote_port: "${REMOTE_PORT}"

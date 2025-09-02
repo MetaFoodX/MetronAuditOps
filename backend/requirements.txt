@@ -1,0 +1,73 @@
+# Core ML dependencies (pinned versions)
+torch==2.1.2
+torchvision==0.16.2
+ultralytics>=8.2.0
+opencv-python==4.9.0.80
+open3d==0.18.0
+
+# FastAPI and async
+fastapi>=0.115
+uvicorn[standard]>=0.34
+apscheduler==3.10.4
+Flask-APScheduler==1.12.3
+
+# AWS and database
+boto3
+pymysql>=1.1.0
+sshtunnel>=0.4.0
+paramiko<3.0.0  # Pin to avoid DSSKey compatibility issues
+
+# Data processing
+numpy>=1.25.0
+pandas>=2.2.1
+scikit-learn==4.1.1.post1
+scipy==1.12.0
+
+# Computer vision and image processing
+Pillow>=9.5.0
+matplotlib>=3.8.3
+seaborn==0.12.1
+
+# Web and API
+requests>=2.31.0
+Flask==2.3.2
+dash==2.16.1
+plotly==5.20.0
+
+# Google AI and ML
+google-generativeai>=0.8.0
+google-cloud-storage>=2.19.0
+google-cloud-aiplatform>=1.79.0
+
+# AI/ML specific dependencies
+timm
+shapely==2.0.4
+pyquaternion==0.9.9
+scikit-image>=0.22.0
+
+# Redis and Queue management
+redis>=4.0.0
+rq>=1.15.0
+
+# Utilities
+python-dateutil==2.8.2
+PyYAML==6.0.1
+python-json-logger==2.0.7
+tqdm==4.66.2
+
+# Jupyter and development (if needed)
+ipykernel==6.23.3
+ipython==8.14.0
+jupyterlab==4.0.3
+
+# Security and authentication
+argon2-cffi==21.3.0
+cryptography
+
+# Other dependencies
+addict==2.4.0
+anyio>=3.7.1
+attrs==23.1.0
+click==8.1.3
+tenacity==8.2.3
+retrying==1.3.4

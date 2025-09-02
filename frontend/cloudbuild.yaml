@@ -1,0 +1,86 @@
+steps:
+  # Install dependencies
+  - name: "node:20"
+    entrypoint: "npm"
+    args: ["ci"]
+    dir: "frontend"
+    id: "install-deps"
+
+  # Resolve backend URL and write Vite production env
+  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
+    entrypoint: "bash"
+    args:
+      - "-c"
+      - |
+        set -e
+        BACKEND_URL=$(gcloud run services describe automation-backend --region ${_REGION} --format="value(status.url)")
+        BUILD_TAG=$(date +%Y%m%d-%H%M%S)
+        # Use $$ to escape for Cloud Build so bash receives a single $
+        echo "VITE_API_BASE_URL=$$BACKEND_URL" > frontend/.env.production
+        echo "VITE_BUILD_TAG=$$BUILD_TAG" >> frontend/.env.production
+        echo "Wrote frontend/.env.production with VITE_API_BASE_URL=$$BACKEND_URL and VITE_BUILD_TAG=$$BUILD_TAG"
+    id: "setup-env"
+    waitFor: ["install-deps"]
+
+  # Build the React application
+  - name: "node:20"
+    entrypoint: "npm"
+    args: ["run", "build"]
+    dir: "frontend"
+    id: "build-frontend"
+    waitFor: ["setup-env"]
+
+  # Build the frontend Docker image
+  - name: "gcr.io/cloud-builders/docker"
+    args:
+      - "build"
+      - "-t"
+      - "us-central1-docker.pkg.dev/${PROJECT_ID}/automation/automation-frontend:${_TAG}"
+      - "-f"
+      - "frontend/Dockerfile"
+      - "--progress=plain"
+      - "."
+    id: "build-frontend-image"
+
+  # Push the image to Artifact Registry
+  - name: "gcr.io/cloud-builders/docker"
+    args:
+      - "push"
+      - "us-central1-docker.pkg.dev/${PROJECT_ID}/automation/automation-frontend:${_TAG}"
+    id: "push-frontend"
+    waitFor: ["build-frontend-image"]
+
+  # Deploy to Cloud Run
+  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
+    entrypoint: gcloud
+    args:
+      - "run"
+      - "deploy"
+      - "automation-frontend"
+      - "--image=us-central1-docker.pkg.dev/${PROJECT_ID}/automation/automation-frontend:${_TAG}"
+      - "--region=${_REGION}"
+      - "--platform=managed"
+      - "--allow-unauthenticated"
+      - "--port=3000"
+      - "--cpu=1"
+      - "--memory=1Gi"
+      - "--min-instances=0"
+      - "--max-instances=5"
+      - "--concurrency=80"
+      - "--timeout=300"
+      - "--revision-suffix=${_TAG}"
+    id: "deploy-frontend"
+    waitFor: ["push-frontend"]
+
+substitutions:
+  _REGION: "us-central1"
+  _TAG: "latest"
+
+images:
+  - "us-central1-docker.pkg.dev/${PROJECT_ID}/automation/automation-frontend:${_TAG}"
+
+timeout: "1200s" # 20 minutes
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  diskSizeGb: "50"

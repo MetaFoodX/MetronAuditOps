@@ -1,0 +1,71 @@
+steps:
+  # Build the backend Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - 'us-central1-docker.pkg.dev/${PROJECT_ID}/automation/automation-backend:${_TAG}'
+      - '-f'
+      - 'backend/Dockerfile.minimal'
+      - '--progress=plain'
+      - '--no-cache'
+      - '--build-arg'
+      - 'BUILDKIT_PROGRESS=plain'
+      - '.'
+    id: 'build-backend'
+
+  # Push the image to Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'us-central1-docker.pkg.dev/${PROJECT_ID}/automation/automation-backend:${_TAG}'
+    id: 'push-backend'
+    waitFor: ['build-backend']
+
+  # Deploy to Cloud Run (simplified)
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'automation-backend'
+      - '--image=us-central1-docker.pkg.dev/${PROJECT_ID}/automation/automation-backend:${_TAG}'
+      - '--region=${_REGION}'
+      - '--platform=managed'
+      - '--allow-unauthenticated'
+      - '--port=8080'
+      - '--cpu=2'
+      - '--memory=8Gi'
+      - '--min-instances=1'
+      - '--max-instances=3'
+      - '--concurrency=1'
+      - '--timeout=1800'
+      - '--revision-suffix=${_TAG}'
+      - '--service-account=automation-backend-sa@${PROJECT_ID}.iam.gserviceaccount.com'
+      # Inject secrets as environment variables
+      - '--set-secrets=AWS_ACCESS_KEY_ID=aws-access-key:latest'
+      - '--set-secrets=AWS_SECRET_ACCESS_KEY=aws-secret-key:latest'
+      - '--set-secrets=SKOOPIN_REFRESH_TOKEN=skoopin-refresh-token:latest'
+      - '--set-secrets=OPENAI_API_KEY=openai-api-key:latest'
+      - '--set-secrets=GOOGLE_API_KEY=google-api-key:latest'
+      - '--set-secrets=DB_PASS=db-password:latest'
+      - '--set-secrets=DB_SSH_KEY_BASE64=db-ssh-key:latest'
+      # Non-secret envs (override defaults if needed)
+      - '--set-env-vars=DB_USER=readonly,DB_SCHEMA=skoopin_production,SSH_HOST=production-bastion.skoopin.net,SSH_USERNAME=ubuntu,REMOTE_HOST=production-database.cp6ohzeoevfi.us-west-2.rds.amazonaws.com,REMOTE_PORT=3306'
+      - '--set-env-vars=AUDIT_DIRECTORY=/tmp/_audits,AUDIT_CSV_FILE_DIR=/tmp/_auditsCompleted,AUDIT_SCAN_ZERO_WEIGHT=/tmp/pan_per_scans'
+    id: 'deploy-backend'
+    waitFor: ['push-backend']
+
+substitutions:
+  _REGION: 'us-central1'
+  _TAG: 'latest'
+
+images:
+  - 'us-central1-docker.pkg.dev/${PROJECT_ID}/automation/automation-backend:${_TAG}'
+
+timeout: '7200s'  # 2 hours for ML builds with large models
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: 'E2_HIGHCPU_8'  # More CPU for ML builds
+  diskSizeGb: '200'  # Larger disk for ML models and project files

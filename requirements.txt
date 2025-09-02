@@ -1,0 +1,135 @@
+# Core FastAPI and Web Framework
+fastapi>=0.115.0
+uvicorn[standard]>=0.34.0
+pydantic>=2.0.0
+
+# AWS Services
+boto3>=1.34.0
+botocore>=1.34.0
+
+# Database and SSH
+pymysql>=1.1.0
+sshtunnel>=0.4.0
+paramiko<3.0.0
+
+# DynamoDB
+boto3>=1.34.0
+
+# Scheduler and Background Tasks
+apscheduler==3.10.4
+Flask-APScheduler==1.12.3
+
+# HTTP and API
+requests>=2.31.0
+Flask==2.3.2
+
+# Data Processing
+numpy>=1.25.0
+pandas>=2.2.1
+scipy==1.12.0
+
+# Image Processing
+Pillow>=9.5.0
+opencv-python==4.9.0.80
+
+# Machine Learning and AI
+torch==2.1.2
+torchvision==0.16.2
+ultralytics>=8.2.0
+open3d==0.18.0
+scikit-learn==4.1.1.post1
+timm>=0.9.0
+
+# Computer Vision
+shapely==2.0.4
+pyquaternion==0.9.9
+scikit-image>=0.22.0
+
+# Visualization
+matplotlib>=3.8.3
+seaborn==0.12.1
+plotly==5.20.0
+dash==2.16.1
+
+# Google AI and Cloud
+google-generativeai>=0.8.0
+google-cloud-storage>=2.19.0
+google-cloud-aiplatform>=1.79.0
+
+# Queue Management
+redis>=4.0.0
+rq>=1.15.0
+
+# Configuration and Utilities
+PyYAML==6.0.1
+python-dateutil==2.8.2
+python-json-logger==2.0.7
+tqdm==4.66.2
+addict==2.4.0
+anyio>=3.7.1
+attrs==23.1.0
+click==8.1.3
+
+# Retry and Resilience
+tenacity==8.2.3
+retrying==1.3.4
+
+# Security
+argon2-cffi==21.3.0
+cryptography>=41.0.0
+
+# Timezone
+pytz>=2023.3
+
+# Development and Testing (optional)
+ipykernel==6.23.3
+ipython==8.14.0
+jupyterlab==4.0.3
+
+# CORS and Middleware
+fastapi-cors>=0.0.6
+
+# Logging
+python-json-logger==2.0.7
+
+# Async Support
+asyncio-mqtt>=0.16.0
+
+# File Operations
+pathlib2>=2.3.7
+
+# JSON and Data Serialization
+orjson>=3.9.0
+
+# Environment Variables
+python-dotenv>=1.0.0
+
+# HTTP Client
+httpx>=0.25.0
+
+# Validation
+email-validator>=2.0.0
+
+# Background Tasks
+celery>=5.3.0
+
+# Monitoring and Metrics
+prometheus-client>=0.17.0
+
+# Error Handling
+sentry-sdk>=1.38.0
+
+# Testing
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+pytest-cov>=4.1.0
+
+# Code Quality
+black>=23.0.0
+flake8>=6.0.0
+mypy>=1.5.0
+isort>=5.12.0
+
+# Documentation
+mkdocs>=1.5.0
+mkdocs-material>=9.2.0

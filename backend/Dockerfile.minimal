@@ -1,0 +1,48 @@
+# Minimal Dockerfile for debugging
+FROM python:3.11-slim
+
+# Install basic system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential git curl && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy the entire project first
+COPY . /app/
+
+# Install Python dependencies with error checking
+RUN pip install --no-cache-dir --upgrade pip
+RUN pip install --no-cache-dir fastapi uvicorn || echo "Failed to install fastapi/uvicorn"
+RUN pip install --no-cache-dir apscheduler==3.10.4 || echo "Failed to install apscheduler"
+RUN pip install --no-cache-dir boto3 pymysql || echo "Failed to install boto3/pymysql"
+RUN pip install --no-cache-dir numpy pandas || echo "Failed to install numpy/pandas"
+RUN pip install --no-cache-dir "paramiko<3.0.0" sshtunnel>=0.4.0 || echo "Failed to install sshtunnel/paramiko"
+RUN pip install --no-cache-dir redis>=4.0.0 rq>=1.15.0 || echo "Failed to install redis/rq"
+RUN pip install --no-cache-dir torch==2.1.2 --index-url https://download.pytorch.org/whl/cpu || echo "Failed to install torch"
+RUN pip install --no-cache-dir torchvision==0.16.2 --index-url https://download.pytorch.org/whl/cpu || echo "Failed to install torchvision"
+RUN pip install --no-cache-dir ultralytics opencv-python || echo "Failed to install ultralytics/opencv"
+
+# Install remaining dependencies from requirements.txt
+RUN pip install --no-cache-dir -r backend/requirements.txt || echo "Failed to install from requirements.txt"
+
+# Create necessary directories
+RUN mkdir -p /tmp/pan_per_scans /tmp/_auditsCompleted /tmp/_audits
+
+# Set environment variables
+ENV PORT=8080
+ENV PYTHONPATH=/app:/app/backend:/app/audit_automation:/app/system:$PYTHONPATH
+ENV PYTHONUNBUFFERED=1
+
+# Make entrypoint executable
+RUN chmod +x /app/backend/entrypoint.sh
+
+# Test that key modules can be imported
+RUN python -c "import sshtunnel; print('sshtunnel imported successfully')" || echo "sshtunnel import failed"
+RUN python -c "import fastapi; print('fastapi imported successfully')" || echo "fastapi import failed"
+RUN python -c "import redis; print('redis imported successfully')" || echo "redis import failed"
+RUN python -c "import rq; print('rq imported successfully')" || echo "rq import failed"
+RUN python -c "import apscheduler; print('apscheduler imported successfully')" || echo "apscheduler import failed"
+
+# Use entrypoint script
+ENTRYPOINT ["/app/backend/entrypoint.sh"]

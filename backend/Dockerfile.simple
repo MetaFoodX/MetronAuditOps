@@ -1,0 +1,30 @@
+# Simple Dockerfile for testing
+FROM python:3.11-slim
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libglib2.0-0 libsm6 libxext6 libxrender1 git curl build-essential \
+    gettext-base && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy the entire project
+COPY . /app/
+
+# Install Python dependencies
+RUN pip install --no-cache-dir -r backend/requirements.txt
+
+# Create necessary directories
+RUN mkdir -p /tmp/pan_per_scans /tmp/_auditsCompleted /tmp/_audits
+
+# Set environment variables
+ENV PORT=8080
+ENV PYTHONPATH=/app:/app/backend:/app/audit_automation:/app/system:$PYTHONPATH
+ENV PYTHONUNBUFFERED=1
+
+# Make entrypoint executable
+RUN chmod +x /app/backend/entrypoint.sh
+
+# Use entrypoint script
+ENTRYPOINT ["/app/backend/entrypoint.sh"]
