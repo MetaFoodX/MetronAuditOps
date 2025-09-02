@@ -287,7 +287,7 @@ export default function Audit() {
         .catch(() => alert("Failed to fetch scans"))
         .finally(() => setLoadingScans(false));
     },
-    [apiBaseUrl, restaurant?.id, date],
+    [apiBaseUrl, restaurant, date],
   );
 
   useEffect(() => {
@@ -354,7 +354,9 @@ export default function Audit() {
             restaurantId: restaurant?.id,
             date,
           });
-        } catch {}
+        } catch (error) {
+          console.error("Error logging warning:", error);
+        }
         setLoadingPans(false);
         return;
       }
@@ -362,14 +364,18 @@ export default function Audit() {
         setLoadingPans(true);
         try {
           console.info("[pans] useEffect triggered for DB fetch");
-        } catch {}
+        } catch (error) {
+          console.error("Error logging info:", error);
+        }
       }
       try {
         console.info(
           `[pans] DB fetch start (attempt ${attempt + 1}/${maxTries}) → GET ${apiBaseUrl || "(same-origin)"}/api/pans`,
           { restaurantId: restaurant.id, date },
         );
-      } catch {}
+      } catch (error) {
+        console.error("Error logging fetch start:", error);
+      }
       axios
         .get(`${apiBaseUrl}/api/pans`, {
           params: {
@@ -387,7 +393,9 @@ export default function Audit() {
             console.info(
               `[pans] DB fetch success (attempt ${attempt + 1}) — pans=${_panRecords.length}, building=${building}`,
             );
-          } catch {}
+          } catch (error) {
+            console.error("Error logging success:", error);
+          }
           setRegisteredPans(_panRecords);
           setFilteredPans(_panRecords);
 
@@ -397,12 +405,16 @@ export default function Audit() {
                 console.warn(
                   "[pans] No pans yet or building in progress; will re-try",
                 );
-              } catch {}
+              } catch (error) {
+                console.error("Error logging retry warning:", error);
+              }
               setTimeout(() => loadPans(attempt + 1), delayMs);
             } else {
               try {
                 console.error("[pans] Exhausted retries fetching pans from DB");
-              } catch {}
+              } catch (error) {
+                console.error("Error logging exhausted retries:", error);
+              }
               setLoadingPans(false);
             }
           } else {
@@ -416,7 +428,9 @@ export default function Audit() {
               `[pans] DB fetch failed (attempt ${attempt + 1}):`,
               e?.message || e,
             );
-          } catch {}
+          } catch (error) {
+            console.error("Error logging fetch failure:", error);
+          }
           if (attempt + 1 < maxTries) {
             setTimeout(() => loadPans(attempt + 1), delayMs);
           } else {
@@ -430,7 +444,7 @@ export default function Audit() {
     return () => {
       cancelled = true;
     };
-  }, [restaurant?.id, date, apiBaseUrl]);
+  }, [restaurant, date, apiBaseUrl]);
 
   // Reset filters & auto‐select pan on scan change
   useEffect(() => {
@@ -496,7 +510,7 @@ export default function Audit() {
         setFilteredPans(registeredPans);
       }
     }
-  }, [currentScan, registeredPans, audits]);
+  }, [currentScan, registeredPans, audits, findPanByExternalId, sanitizePanId]);
 
   // On pan selection filter changes
   useEffect(() => {
@@ -547,7 +561,9 @@ export default function Audit() {
           ),
         );
       })
-      .catch(() => {});
+      .catch((error) => {
+        console.error("Failed to presign image:", error);
+      });
     return () => {
       cancelled = true;
     };
